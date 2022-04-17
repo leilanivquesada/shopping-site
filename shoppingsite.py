@@ -6,10 +6,11 @@ put melons in a shopping cart.
 Authors: Joel Burton, Christian Fernandez, Meggie Mahnken, Katie Byers.
 """
 
-from flask import Flask, render_template, redirect, flash
+from flask import Flask, render_template, redirect, flash, session, request
 import jinja2
 
 import melons
+import customers
 
 app = Flask(__name__)
 
@@ -50,7 +51,7 @@ def show_melon(melon_id):
     Show all info about a melon. Also, provide a button to buy that melon.
     """
 
-    melon = melons.get_by_id("meli")
+    melon = melons.get_by_id(melon_id)
     print(melon)
     return render_template("melon_details.html",
                            display_melon=melon)
@@ -59,7 +60,11 @@ def show_melon(melon_id):
 @app.route("/cart")
 def show_shopping_cart():
     """Display content of shopping cart."""
-
+    order_total = 0
+    
+    cart_melons = []
+    
+    cart = session.get("cart", {})
     # TODO: Display the contents of the shopping cart.
 
     # The logic here will be something like:
@@ -68,17 +73,24 @@ def show_shopping_cart():
     # - create a list to hold melon objects and a variable to hold the total
     #   cost of the order
     # - loop over the cart dictionary, and for each melon id:
+    for melon_id, quantity in cart.items():
+        melon = melons.get_by_id(melon_id)
     #    - get the corresponding Melon object
     #    - compute the total cost for that type of melon
+        total_cost = quantity * melon.price
     #    - add this to the order total
+        order_total += total_cost
     #    - add quantity and total cost as attributes on the Melon object
+        melon.quantity = quantity
+        melon.total_cost = total_cost
     #    - add the Melon object to the list created above
+        cart_melons.append(melon)
     # - pass the total order cost and the list of Melon objects to the template
     #
     # Make sure your function can also handle the case wherein no cart has
     # been added to the session
 
-    return render_template("cart.html")
+    return render_template("cart.html", cart=cart_melons, order_total=order_total)
 
 
 @app.route("/add_to_cart/<melon_id>")
@@ -95,13 +107,18 @@ def add_to_cart(melon_id):
     #
     # - check if a "cart" exists in the session, and create one (an empty
     #   dictionary keyed to the string "cart") if not
+    if "cart" in session:
+        cart = session["cart"]
+    else: 
+        cart = session.setdefault("cart", {})
     # - check if the desired melon id is the cart, and if not, put it in
+    cart[melon_id] = cart.get(melon_id,0) + 1
     # - increment the count for that melon id by 1
     # - flash a success message
+    flash("Melon successfully added to the cart")
     # - redirect the user to the cart page
 
-    return "Oops! This needs to be implemented!"
-
+    return redirect("/cart")
 
 @app.route("/login", methods=["GET"])
 def show_login():
@@ -123,6 +140,20 @@ def process_login():
     # The logic here should be something like:
     #
     # - get user-provided name and password from request.form
+    email = request.form.get("email")
+    password = request.form.get("password")
+    
+    if email in customers.customers:
+        customer = customers.get_by_id(email)
+        if password == customer.password:
+            flash("Success! You are now logged in.")
+        else:
+            flash("password does not match. Try again")
+    else:
+        flash("Email not found. Create a profile?")
+
+        
+    
     # - use customers.get_by_email() to retrieve corresponding Customer
     #   object (if any)
     # - if a Customer with that email was found, check the provided password
@@ -132,7 +163,7 @@ def process_login():
     # - if they don't, flash a failure message and redirect back to "/login"
     # - do the same if a Customer with that email doesn't exist
 
-    return "Oops! This needs to be implemented"
+    return render_template("login.html")
 
 
 @app.route("/checkout")
